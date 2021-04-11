@@ -143,103 +143,103 @@ The Azure IoT Edge extension for Visual Studio Code that you installed provides 
 10. Get the credentials from the portal. Go to Container Registry you created and click on **Access Keys**. Pick the username and password. In the image below the username and password have been grayed out. 
 
 11. Replace the code with below code and update connection string accordingly 
-
-````C#
-using System.Collections.Generic;
-using System.Threading.Tasks;
-
-using Microsoft.Azure.Devices.Client;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.EdgeHub;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-
-using Sql = System.Data.SqlClient;
-
-namespace Functions
-{
-    public static class sensorToSQL
+    
+    ````C#
+    using System.Collections.Generic;
+    using System.Threading.Tasks;
+    
+    using Microsoft.Azure.Devices.Client;
+    using Microsoft.Azure.WebJobs;
+    using Microsoft.Azure.WebJobs.Extensions.EdgeHub;
+    using Microsoft.Extensions.Logging;
+    using Newtonsoft.Json;
+    
+    using Sql = System.Data.SqlClient;
+    
+    namespace Functions
     {
-        [FunctionName("sensorToSQL")]
-        public static async Task FilterMessageAndSendMessage(
-            [EdgeHubTrigger("input1")] Message messageReceived,
-            [EdgeHub(OutputName = "output1")] IAsyncCollector<Message> output,
-            ILogger logger)
+        public static class sensorToSQL
         {
-            const int temperatureThreshold = 20;
-            byte[] messageBytes = messageReceived.GetBytes();
-            var messageString = System.Text.Encoding.UTF8.GetString(messageBytes);
-
-            if (!string.IsNullOrEmpty(messageString))
+            [FunctionName("sensorToSQL")]
+            public static async Task FilterMessageAndSendMessage(
+                [EdgeHubTrigger("input1")] Message messageReceived,
+                [EdgeHub(OutputName = "output1")] IAsyncCollector<Message> output,
+                ILogger logger)
             {
-                logger.LogInformation($"Info: Received one non-empty message\n\t'{messageString}'");
-                // Get the body of the message and deserialize it.
-                var messageBody = JsonConvert.DeserializeObject<MessageBody>(messageString);
-
-                //Store the data in SQL db
-                const string str = "Data Source=tcp:[module_name],1433;Initial Catalog=[MeasurementsDB];User Id=SA;Password=[xxxxxxx];TrustServerCertificate=False;Connection Timeout=30;";
-                using (Sql.SqlConnection conn = new Sql.SqlConnection(str))
+                const int temperatureThreshold = 20;
+                byte[] messageBytes = messageReceived.GetBytes();
+                var messageString = System.Text.Encoding.UTF8.GetString(messageBytes);
+    
+                if (!string.IsNullOrEmpty(messageString))
                 {
-                    conn.Open();
-
-                    var insertMachineTemperature = "INSERT INTO MeasurementsDB.dbo.TemperatureMeasurements VALUES (CONVERT(DATETIME2,'" + messageBody.timeCreated + "', 127), 'machine', " + messageBody.machine.temperature + ");";
-                    var insertAmbientTemperature = "INSERT INTO MeasurementsDB.dbo.TemperatureMeasurements VALUES (CONVERT(DATETIME2,'" + messageBody.timeCreated + "', 127), 'ambient', " + messageBody.ambient.temperature + ");";
-                    using (Sql.SqlCommand cmd = new Sql.SqlCommand(insertMachineTemperature + "\n" + insertAmbientTemperature, conn))
+                    logger.LogInformation($"Info: Received one non-empty message\n\t'{messageString}'");
+                    // Get the body of the message and deserialize it.
+                    var messageBody = JsonConvert.DeserializeObject<MessageBody>(messageString);
+    
+                    //Store the data in SQL db
+                    const string str = "Data Source=tcp:[module_name],1433;Initial Catalog=[MeasurementsDB];User Id=SA;Password=[xxxxxxx];TrustServerCertificate=False;Connection Timeout=30;";
+                    using (Sql.SqlConnection conn = new Sql.SqlConnection(str))
                     {
-                        //Execute the command and log the # rows affected.
-                        var rows = await cmd.ExecuteNonQueryAsync();
-                        logger.LogInformation($"{rows} rows were updated");
-                    }
-                }
-
-                if (messageBody != null && messageBody.machine.temperature > temperatureThreshold)
-                {
-                    // Send the message to the output as the temperature value is greater than the threashold.
-                    using (var filteredMessage = new Message(messageBytes))
-                    {
-                        // Copy the properties of the original message into the new Message object.
-                        foreach (KeyValuePair<string, string> prop in messageReceived.Properties)
+                        conn.Open();
+    
+                        var insertMachineTemperature = "INSERT INTO MeasurementsDB.dbo.TemperatureMeasurements VALUES (CONVERT(DATETIME2,'" + messageBody.timeCreated + "', 127), 'machine', " + messageBody.machine.temperature + ");";
+                        var insertAmbientTemperature = "INSERT INTO MeasurementsDB.dbo.TemperatureMeasurements VALUES (CONVERT(DATETIME2,'" + messageBody.timeCreated + "', 127), 'ambient', " + messageBody.ambient.temperature + ");";
+                        using (Sql.SqlCommand cmd = new Sql.SqlCommand(insertMachineTemperature + "\n" + insertAmbientTemperature, conn))
                         {
-                            filteredMessage.Properties.Add(prop.Key, prop.Value);
+                            //Execute the command and log the # rows affected.
+                            var rows = await cmd.ExecuteNonQueryAsync();
+                            logger.LogInformation($"{rows} rows were updated");
                         }
-
-                        // Add a new property to the message to indicate it is an alert.
-                        filteredMessage.Properties.Add("MessageType", "Alert");
-
-                        // Send the message.
-                        await output.AddAsync(filteredMessage);
-
-                        logger.LogInformation("Info: Received and transferred a message with temperature above the threshold");
+                    }
+    
+                    if (messageBody != null && messageBody.machine.temperature > temperatureThreshold)
+                    {
+                        // Send the message to the output as the temperature value is greater than the threashold.
+                        using (var filteredMessage = new Message(messageBytes))
+                        {
+                            // Copy the properties of the original message into the new Message object.
+                            foreach (KeyValuePair<string, string> prop in messageReceived.Properties)
+                            {
+                                filteredMessage.Properties.Add(prop.Key, prop.Value);
+                            }
+    
+                            // Add a new property to the message to indicate it is an alert.
+                            filteredMessage.Properties.Add("MessageType", "Alert");
+    
+                            // Send the message.
+                            await output.AddAsync(filteredMessage);
+    
+                            logger.LogInformation("Info: Received and transferred a message with temperature above the threshold");
+                        }
                     }
                 }
             }
         }
+    
+        //Define the expected schema for the body of incoming messages.
+        class MessageBody
+        {
+            public Machine machine {get; set;}
+            public Ambient ambient {get; set;}
+            public string timeCreated {get; set;}
+        }
+    
+        class Machine
+        {
+            public double temperature {get; set;}
+            public double pressure {get; set;}
+        }
+    
+        class Ambient
+        {
+            public double temperature {get; set;}
+            public int humidity {get; set;}
+        }
     }
+    
+    ````
 
-    //Define the expected schema for the body of incoming messages.
-    class MessageBody
-    {
-        public Machine machine {get; set;}
-        public Ambient ambient {get; set;}
-        public string timeCreated {get; set;}
-    }
-
-    class Machine
-    {
-        public double temperature {get; set;}
-        public double pressure {get; set;}
-    }
-
-    class Ambient
-    {
-        public double temperature {get; set;}
-        public int humidity {get; set;}
-    }
-}
-
-````
-
-If your project shows error do a dotnet restore. Open a terminal and go to your project modules folder and type in dotnet restore. Once done close the FilterFunction.cs file and reopen.
+    If your project shows error do a dotnet restore. Open a terminal and go to your project modules folder and type in dotnet restore. Once done close the FilterFunction.cs file and reopen.
 
 12. Open the VS Code integrated terminal by selecting **View > Terminal**.
 
