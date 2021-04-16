@@ -1,4 +1,4 @@
-# Device Observability on the Edge with Azure IoT Edge & Azure IoT Central
+# Dashboarding on the Edge with Azure IoT Edge & Azure IoT Central
 
 In this learning path you will implement the following solution
 
