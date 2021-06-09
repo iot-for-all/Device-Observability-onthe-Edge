@@ -120,9 +120,9 @@ The Azure IoT Edge extension for Visual Studio Code that you installed provides 
 
 3. In Visual Studio Code, under **Provide a Solution Name**, enter **SensorToSQL**.
 
-4. Under **Select Module Template**, select **C# Module**.
+4. Under **Select Module Template**, select **Azure Function - C#**.
 
-    ![CSharp Module](images/08csharpmodule.png)
+    ![CSharp Module](images/azurefunction.png)
 
 5. Under **Provide Docker image repository for the module**, replace the value with the following:
 
